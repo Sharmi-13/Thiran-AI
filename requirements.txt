@@ -1,0 +1,13 @@
+# Thiran AI — core dependencies
+# Install into the project virtual environment:
+#   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Strands Agents SDK — the three agents (Interviewer, Evaluator, Coach)
+# are genuine strands.Agent instances driven by a custom Model provider.
+strands-agents>=1.0,<2.0
+
+# Streamlit — web UI, run with: streamlit run app/app.py
+streamlit>=1.40
+
+# python-dotenv — loads .env into environment variables for utils/config.py
+python-dotenv>=1.0
