@@ -21,16 +21,7 @@ from agents.coach import coach
 from agents.evaluator import evaluate
 from agents.interviewer import ask_question
 from utils.attempts import record_attempt
-
-
-def _friendly_error(error: Exception) -> str:
-    """Map an exception to one short, safe message (never includes the key)."""
-    text = str(error).lower()
-    if "404" in text or "not found" in text:
-        return "The AI model name is not available. Check GEMINI_MODEL in your .env file."
-    if "429" in text or "quota" in text or "rate limit" in text or "resource_exhausted" in text:
-        return "Free usage limit reached. Please wait a minute and try again."
-    return "Something went wrong. Please try again."
+from utils.errors import friendly_error
 
 
 def _choose_role() -> str:
@@ -67,7 +58,7 @@ def main() -> None:
     try:
         question = ask_question(role)
     except Exception as error:  # noqa: BLE001 - surface a friendly message only
-        print(_friendly_error(error))
+        print(friendly_error(error))
         return
     print(f"\nQuestion:\n{question}\n")
 
@@ -80,7 +71,7 @@ def main() -> None:
     try:
         evaluation = evaluate(question, answer)
     except Exception as error:  # noqa: BLE001
-        print(_friendly_error(error))
+        print(friendly_error(error))
         return
 
     print("\n--- Scores (out of 10) ---")
@@ -104,7 +95,7 @@ def main() -> None:
     try:
         feedback = coach(question, answer)
     except Exception as error:  # noqa: BLE001
-        print(_friendly_error(error))
+        print(friendly_error(error))
         return
 
     print("\n--- Coaching feedback ---")
