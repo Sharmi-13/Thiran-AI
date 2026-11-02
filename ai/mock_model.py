@@ -111,16 +111,18 @@ class MockModel(Model):
     ) -> str:
         """Pick a deterministic canned response for the request.
 
-        The intent, category, and difficulty are inferred primarily from the
-        system prompt (which the agents set), with the latest user message as
-        a secondary signal. Language defaults to the configured language but a
-        prompt-level language hint overrides it.
+        Intent and language are inferred from the full prompt (system prompt
+        plus latest user message). Category and difficulty are inferred from
+        the latest *user* message only: the role/difficulty always come from
+        the user turn, while the shared system prompt is generic and would
+        otherwise bias the classification.
         """
-        prompt_text = " ".join(filter(None, [system_prompt or "", self._latest_user_text(messages)]))
+        user_text = self._latest_user_text(messages)
+        prompt_text = " ".join(filter(None, [system_prompt or "", user_text]))
 
         intent = self._classify(prompt_text, INTENT_KEYWORDS, "question")
-        category = self._classify(prompt_text, CATEGORY_KEYWORDS, "software")
-        difficulty = self._classify(prompt_text, DIFFICULTY_KEYWORDS, "beginner")
+        category = self._classify(user_text, CATEGORY_KEYWORDS, "software")
+        difficulty = self._classify(user_text, DIFFICULTY_KEYWORDS, "beginner")
         language = self._classify(
             prompt_text, LANGUAGE_KEYWORDS, self.config.get("language", _DEFAULT_LANGUAGE)
         )

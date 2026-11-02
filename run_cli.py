@@ -3,8 +3,8 @@
 Runs one full practice loop in the terminal:
 
     student id -> role -> interview question -> your answer ->
-    evaluation scores (logged to results/attempts.csv) ->
-    Tamil coaching feedback with an improved English sample answer.
+    one merged review call: scores (logged to results/attempts.csv) plus
+    Tamil advice, an improved English sample answer, and how to say it.
 
 Uses the configured AI provider via ``ai.factory.get_model`` (Gemini when
 ``AI_PROVIDER=gemini``). Run it yourself:
@@ -17,8 +17,7 @@ No API keys are printed by this script.
 from __future__ import annotations
 
 from agents._common import ROLE_LABELS, DEFAULT_ROLE
-from agents.coach import coach
-from agents.evaluator import evaluate
+from agents.coach import review
 from agents.interviewer import ask_question
 from utils.attempts import record_attempt
 from utils.errors import friendly_error
@@ -67,39 +66,38 @@ def main() -> None:
         print("\nNo answer given. Exiting.")
         return
 
-    print("\nEvaluator is scoring your answer...")
+    print("\nReviewing your answer...")
     try:
-        evaluation = evaluate(question, answer)
+        result = review(question, answer)
     except Exception as error:  # noqa: BLE001
         print(friendly_error(error))
         return
 
     print("\n--- Scores (out of 10) ---")
-    print(f"  Content   : {evaluation.content}")
-    print(f"  Structure : {evaluation.structure}")
-    print(f"  English   : {evaluation.english}")
-    print(f"  Overall   : {evaluation.overall}")
-    print(f"  Notes     : {evaluation.notes}")
+    print(f"  Content   : {result.content}")
+    print(f"  Structure : {result.structure}")
+    print(f"  English   : {result.english}")
+    print(f"  Overall   : {result.overall}")
+    print(f"  Notes     : {result.notes}")
 
     attempt_number = record_attempt(
         student_id=student_id,
         role=role,
-        content=evaluation.content,
-        structure=evaluation.structure,
-        english=evaluation.english,
-        overall=evaluation.overall,
+        content=result.content,
+        structure=result.structure,
+        english=result.english,
+        overall=result.overall,
     )
     print(f"\n(Logged attempt #{attempt_number} for {student_id} to results/attempts.csv)")
 
-    print("\nCoach is preparing feedback...")
-    try:
-        feedback = coach(question, answer)
-    except Exception as error:  # noqa: BLE001
-        print(friendly_error(error))
-        return
+    print("\n--- தமிழ் அறிவுரை / Tamil advice ---")
+    print(result.tamil_advice)
 
-    print("\n--- Coaching feedback ---")
-    print(feedback)
+    print("\n--- Improved English answer ---")
+    print(result.improved_english)
+
+    print("\n--- How to say it / இப்படிச் சொல்லுங்கள் ---")
+    print(result.how_to_say_it)
 
 
 if __name__ == "__main__":

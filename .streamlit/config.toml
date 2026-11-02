@@ -1,0 +1,5 @@
+# Streamlit configuration for Thiran AI.
+
+[client]
+# Hide the Deploy button and trim the hamburger menu to essentials.
+toolbarMode = "minimal"

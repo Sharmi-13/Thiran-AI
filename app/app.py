@@ -22,6 +22,9 @@ from agents._common import ROLE_LABELS, DEFAULT_ROLE
 from utils.attempts import ATTEMPTS_CSV, record_attempt
 from utils.errors import friendly_error
 
+# Heading that separates the improved-English section in the coach output.
+_IMPROVED_HEADING = "Improved English answer"
+
 
 # --- session state -----------------------------------------------------------
 
@@ -29,13 +32,21 @@ def _init_state() -> None:
     """Initialize session keys so values persist across reruns/clicks."""
     defaults = {
         "question": None,
-        "evaluation": None,
-        "coaching": None,
+        "review": None,
         "answer": "",
         "error": None,
+        "asked_questions": [],  # no-repeat history for the interviewer
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
+
+
+def _reset_for_next_question() -> None:
+    """Clear the current answer and results, keeping the asked history."""
+    st.session_state.question = None
+    st.session_state.answer = ""
+    st.session_state.review = None
+    st.session_state.error = None
 
 
 # --- progress chart data (stdlib csv, no pandas) -----------------------------
@@ -58,6 +69,45 @@ def _progress_rows(student_id: str) -> list[tuple[int, int]]:
     return rows
 
 
+# --- rendering helpers -------------------------------------------------------
+
+def _score_colour(score: int) -> str:
+    """Return a background colour for a 0-10 score band."""
+    if score >= 7:
+        return "#2e7d32"  # green
+    if score >= 4:
+        return "#f9a825"  # amber
+    return "#c62828"  # red
+
+
+def _score_card(label_en: str, label_ta: str, score: int) -> str:
+    """Return HTML for a single colour-coded score card."""
+    colour = _score_colour(score)
+    return (
+        f"<div style='background:{colour};color:white;border-radius:10px;"
+        f"padding:12px 8px;text-align:center;'>"
+        f"<div style='font-size:0.8rem;opacity:0.9;'>{label_en}<br>{label_ta}</div>"
+        f"<div style='font-size:1.8rem;font-weight:700;'>{score}</div>"
+        f"<div style='font-size:0.75rem;opacity:0.85;'>/ 10</div>"
+        f"</div>"
+    )
+
+
+def _split_coaching(text: str) -> tuple[str, str | None]:
+    """Split coach output into (tamil_part, improved_english_part).
+
+    Splits on the 'Improved English answer' heading. If the heading is not
+    present, the whole text is returned as the Tamil part and the second value
+    is None.
+    """
+    idx = text.find(_IMPROVED_HEADING)
+    if idx == -1:
+        return text.strip(), None
+    tamil = text[:idx].strip()
+    improved = text[idx + len(_IMPROVED_HEADING):].lstrip(" :\n-").strip()
+    return tamil, improved
+
+
 # --- page --------------------------------------------------------------------
 
 def main() -> None:
@@ -74,22 +124,27 @@ def main() -> None:
         st.caption("Use a short code like S01. Do not enter real names.")
         role_keys = list(ROLE_LABELS.keys())
         role = st.selectbox(
-            "Role",
+            "Role / பங்கு",
             options=role_keys,
             index=role_keys.index(DEFAULT_ROLE),
             format_func=lambda key: ROLE_LABELS[key],
         )
 
-    # Get question: constructs the interviewer agent only on click.
-    if st.button("Get question"):
+    st.info("Tip: Use STAR — Situation, Task, Action, Result.")
+
+    # ---- Step 1: Get question -------------------------------------------
+    st.header("1. Get question / கேள்வி பெறுங்கள்")
+    if st.button("Get question / கேள்வி பெறுங்கள்"):
         st.session_state.error = None
         try:
             from agents.interviewer import ask_question
 
-            st.session_state.question = ask_question(role)
+            question = ask_question(role, asked=st.session_state.asked_questions)
+            st.session_state.question = question
+            if question and question not in st.session_state.asked_questions:
+                st.session_state.asked_questions.append(question)
             # Clear any previous results for the new question.
-            st.session_state.evaluation = None
-            st.session_state.coaching = None
+            st.session_state.review = None
             st.session_state.answer = ""
         except Exception as error:  # noqa: BLE001 - show a friendly message only
             st.session_state.error = friendly_error(error)
@@ -98,84 +153,114 @@ def main() -> None:
     if st.session_state.error:
         st.error(st.session_state.error)
 
-    # Question + answer flow.
     if st.session_state.question:
-        st.subheader("Question")
-        st.write(st.session_state.question)
+        st.success(st.session_state.question)
 
+    # ---- Step 2: Your answer --------------------------------------------
+    st.header("2. Your answer / உங்கள் பதில்")
+    if st.session_state.question:
         st.session_state.answer = st.text_area(
-            "Your answer (English, Tamil, or mixed)",
+            "Type in English, Tamil, or mixed / ஆங்கிலம், தமிழ் அல்லது கலந்து",
             value=st.session_state.answer,
             height=160,
         )
 
         can_submit = bool(student_id) and bool(st.session_state.answer.strip())
         if not student_id:
-            st.info("Enter a student ID in the sidebar to submit.")
+            st.info("Enter a student ID in the sidebar to submit. / பக்கப்பட்டியில் மாணவர் ID-ஐ உள்ளிடவும்.")
 
-        if st.button("Submit answer", disabled=not can_submit):
+        if st.button("Submit answer / பதிலை சமர்ப்பிக்கவும்", disabled=not can_submit):
             st.session_state.error = None
             question = st.session_state.question
             answer = st.session_state.answer.strip()
-            with st.spinner("Thinking..."):
+            with st.spinner("Thinking... / யோசிக்கிறது..."):
                 try:
-                    from agents.evaluator import evaluate
-                    from agents.coach import coach
+                    # One merged structured call (evaluator + coach combined).
+                    from agents.coach import review
 
-                    evaluation = evaluate(question, answer)
-                    coaching = coach(question, answer)
+                    result = review(question, answer)
 
                     # Log scores only (no answer text, no personal data).
                     record_attempt(
                         student_id=student_id,
                         role=role,
-                        content=evaluation.content,
-                        structure=evaluation.structure,
-                        english=evaluation.english,
-                        overall=evaluation.overall,
+                        content=result.content,
+                        structure=result.structure,
+                        english=result.english,
+                        overall=result.overall,
                     )
-                    st.session_state.evaluation = evaluation
-                    st.session_state.coaching = coaching
+                    st.session_state.review = result
                 except Exception as error:  # noqa: BLE001
                     st.session_state.error = friendly_error(error)
-                    st.session_state.evaluation = None
-                    st.session_state.coaching = None
+                    st.session_state.review = None
 
             if st.session_state.error:
                 st.error(st.session_state.error)
+    else:
+        st.caption("Get a question first. / முதலில் ஒரு கேள்வியைப் பெறுங்கள்.")
 
-    # Results.
-    evaluation = st.session_state.evaluation
-    if evaluation is not None:
-        st.subheader("Scores (out of 10)")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Content", evaluation.content)
-        c2.metric("Structure", evaluation.structure)
-        c3.metric("English", evaluation.english)
-        c4.metric("Overall", evaluation.overall)
-        st.write(evaluation.notes)
+    # ---- Step 3: Feedback -----------------------------------------------
+    st.header("3. Feedback / கருத்து")
+    review = st.session_state.review
+    if review is not None:
+        st.subheader("Scores / மதிப்பெண்கள் (out of 10)")
+        cols = st.columns(4)
+        cards = [
+            ("Content", "உள்ளடக்கம்", review.content),
+            ("Structure", "அமைப்பு", review.structure),
+            ("English", "ஆங்கிலம்", review.english),
+            ("Overall", "மொத்தம்", review.overall),
+        ]
+        for col, (en, ta, score) in zip(cols, cards):
+            col.markdown(_score_card(en, ta, score), unsafe_allow_html=True)
 
-    if st.session_state.coaching:
-        st.subheader("Coaching feedback")
-        st.markdown(st.session_state.coaching)
+        if review.notes:
+            st.write(review.notes)
 
-    # My progress.
+        # The three feedback boxes come straight from the structured fields.
+        tamil_advice = (review.tamil_advice or "").strip()
+        improved_english = (review.improved_english or "").strip()
+        how_to_say_it = (review.how_to_say_it or "").strip()
+
+        # Fallback: if none of the structured feedback fields are populated,
+        # try to recover sections from notes via the heading splitter.
+        if not any([tamil_advice, improved_english, how_to_say_it]):
+            tamil_advice, improved_english = _split_coaching(review.notes or "")
+
+        if tamil_advice:
+            st.markdown("**தமிழ் அறிவுரை / Tamil advice**")
+            with st.container(border=True):
+                st.markdown(tamil_advice)
+
+        if improved_english:
+            st.markdown("**Improved English answer / மேம்படுத்திய ஆங்கில பதில்**")
+            with st.container(border=True):
+                st.markdown(improved_english)
+
+        if how_to_say_it:
+            st.markdown("**How to say it / இப்படிச் சொல்லுங்கள்**")
+            with st.container(border=True):
+                st.markdown(how_to_say_it)
+
+        if st.button("Next question / அடுத்த கேள்வி"):
+            _reset_for_next_question()
+            st.rerun()
+
+    # ---- Progress --------------------------------------------------------
     if student_id:
-        st.subheader("My progress")
+        st.header("My progress / என் முன்னேற்றம்")
         rows = _progress_rows(student_id)
         if rows:
-            # Index "overall" by attempt_number so the x-axis is the attempt.
-            chart_data = {
-                "attempt_number": [attempt for attempt, _ in rows],
-                "overall": [overall for _, overall in rows],
-            }
+            attempts = [a for a, _ in rows]
+            overalls = [o for _, o in rows]
+            # Whole-number attempt numbers on the x-axis.
+            chart_data = {"attempt_number": attempts, "overall": overalls}
             st.line_chart(chart_data, x="attempt_number", y="overall")
             st.caption(
-                "Overall score by attempt number for "
-                f"{student_id} ({len(rows)} attempt(s))."
+                f"Your overall score: first attempt {overalls[0]} to latest {overalls[-1]}."
             )
         else:
-            st.info("No attempts yet for this student ID.")
+            st.info("No attempts yet for this student ID. / இன்னும் முயற்சிகள் இல்லை.")
 
 
 main()
