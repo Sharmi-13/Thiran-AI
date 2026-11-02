@@ -3,8 +3,9 @@
 #   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 
 # Strands Agents SDK — the three agents (Interviewer, Evaluator, Coach)
-# are genuine strands.Agent instances driven by a custom Model provider.
-strands-agents>=1.0,<2.0
+# are genuine strands.Agent instances. The [gemini] extra pulls google-genai
+# for the built-in GeminiModel provider; the mock model needs no extra.
+strands-agents[gemini]>=1.0,<2.0
 
 # Streamlit — web UI, run with: streamlit run app/app.py
 streamlit>=1.40
