@@ -22,9 +22,6 @@ from agents._common import ROLE_LABELS, DEFAULT_ROLE
 from utils.attempts import ATTEMPTS_CSV, record_attempt
 from utils.errors import friendly_error
 
-# Heading that separates the improved-English section in the coach output.
-_IMPROVED_HEADING = "Improved English answer"
-
 
 # --- session state -----------------------------------------------------------
 
@@ -91,21 +88,6 @@ def _score_card(label_en: str, label_ta: str, score: int) -> str:
         f"<div style='font-size:0.75rem;opacity:0.85;'>/ 10</div>"
         f"</div>"
     )
-
-
-def _split_coaching(text: str) -> tuple[str, str | None]:
-    """Split coach output into (tamil_part, improved_english_part).
-
-    Splits on the 'Improved English answer' heading. If the heading is not
-    present, the whole text is returned as the Tamil part and the second value
-    is None.
-    """
-    idx = text.find(_IMPROVED_HEADING)
-    if idx == -1:
-        return text.strip(), None
-    tamil = text[:idx].strip()
-    improved = text[idx + len(_IMPROVED_HEADING):].lstrip(" :\n-").strip()
-    return tamil, improved
 
 
 # --- page --------------------------------------------------------------------
@@ -214,33 +196,20 @@ def main() -> None:
         for col, (en, ta, score) in zip(cols, cards):
             col.markdown(_score_card(en, ta, score), unsafe_allow_html=True)
 
-        if review.notes:
-            st.write(review.notes)
-
-        # The three feedback boxes come straight from the structured fields.
+        # Exactly two feedback boxes, straight from the structured fields.
+        # (notes is kept in the model but intentionally not shown.)
         tamil_advice = (review.tamil_advice or "").strip()
         improved_english = (review.improved_english or "").strip()
-        how_to_say_it = (review.how_to_say_it or "").strip()
-
-        # Fallback: if none of the structured feedback fields are populated,
-        # try to recover sections from notes via the heading splitter.
-        if not any([tamil_advice, improved_english, how_to_say_it]):
-            tamil_advice, improved_english = _split_coaching(review.notes or "")
 
         if tamil_advice:
-            st.markdown("**தமிழ் அறிவுரை / Tamil advice**")
+            st.markdown("**தமிழ் அறிவுரை / Tamil tips**")
             with st.container(border=True):
                 st.markdown(tamil_advice)
 
         if improved_english:
-            st.markdown("**Improved English answer / மேம்படுத்திய ஆங்கில பதில்**")
+            st.markdown("**Interview English / நேர்காணல் ஆங்கிலம்**")
             with st.container(border=True):
                 st.markdown(improved_english)
-
-        if how_to_say_it:
-            st.markdown("**How to say it / இப்படிச் சொல்லுங்கள்**")
-            with st.container(border=True):
-                st.markdown(how_to_say_it)
 
         if st.button("Next question / அடுத்த கேள்வி"):
             _reset_for_next_question()

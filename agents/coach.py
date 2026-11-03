@@ -4,8 +4,8 @@ A single genuine ``strands.Agent`` that both scores the answer and produces
 coaching feedback in one structured-output call, halving the number of model
 calls per practice round (interviewer stays a separate call).
 
-The call returns a :class:`Review` with scores plus three feedback fields:
-``tamil_advice``, ``improved_english`` and ``how_to_say_it``.
+The call returns a :class:`Review` with scores plus two feedback fields:
+``tamil_advice`` and ``improved_english``.
 """
 
 from __future__ import annotations
@@ -27,22 +27,18 @@ class Review(BaseModel):
     structure: int = Field(ge=0, le=10, description="Clarity and logical organization, 0-10.")
     english: int = Field(ge=0, le=10, description="Quality of professional English, 0-10.")
     overall: int = Field(ge=0, le=10, description="Overall score, 0-10.")
-    notes: str = Field(description="One or two sentences summarizing the key feedback.")
+    notes: str = Field(description="One or two sentences summarizing the key feedback (internal; not shown).")
     tamil_advice: str = Field(
-        description="3-5 short, friendly spoken-Tamil lines of advice on how to "
-        "improve the answer (structure, detail, results). Technical terms kept "
-        "in English. Never criticise modest wording."
+        description="3-5 short, friendly spoken-Tamil tips on how to improve "
+        "THIS answer. Technical terms kept in English. Mention at least one "
+        "thing the student actually said."
     )
     improved_english: str = Field(
-        description="A sample answer in English only (never Tamil), in natural "
-        "spoken interview English using STAR, faithful to what the student said, "
-        "with placeholders like [your tool] and [X%] instead of invented details."
-    )
-    how_to_say_it: str = Field(
-        description="If the student answered in Tamil or Tanglish: 2-3 key "
-        "phrases from their own answer converted to interview English. If the "
-        "student answered in English: 2-3 phrases to improve as 'Instead of X, "
-        "say Y'."
+        description="The student's own answer rewritten as a natural, "
+        "moderate-level spoken interview English answer. English only, never "
+        "Tamil. Keep the student's ideas; do not invent tools, numbers or "
+        "projects; use placeholders like [your tool] or [X%] where details "
+        "are missing."
     )
 
 
@@ -53,27 +49,29 @@ SYSTEM_PROMPT = (
     "candidate's answer, produce these fields:\n"
     "- content, structure, english, overall: integer scores from 0 to 10.\n"
     "- notes: one or two sentences summarizing the key feedback.\n"
-    "- tamil_advice: 3 to 5 short, friendly, spoken-style Tamil lines advising "
-    "how to improve the answer (structure, detail, results). Use easy everyday "
-    "words, keep technical terms in English (for example: cache, API, "
-    "database), keep each line short, and stay encouraging. Do not criticise "
-    "modest wording such as 'small' or 'simple'.\n"
-    "- improved_english: a sample answer ALWAYS in English only, never in "
-    "Tamil, in natural spoken interview English using STAR (Situation, Task, "
-    "Action, Result). Interviews are conducted in English, so never give the "
-    "sample answer in Tamil. Keep it faithful to what the student actually "
-    "said: do NOT invent tools, numbers, companies, or projects. Where a "
-    "specific detail is missing, use a placeholder such as [your tool] or "
-    "[X%] so the student fills it in.\n"
-    "- how_to_say_it: if the student answered in Tamil or in a mix of Tamil "
-    "and English (Tanglish), give 2 or 3 key phrases from their own answer "
-    "converted to interview English. If the student answered in English, give "
-    "2 or 3 phrases they could say better, each as 'Instead of X, say Y'.\n"
+    "- tamil_advice: 3 to 5 short, friendly, spoken-style Tamil tips on how to "
+    "improve THIS answer. Use easy everyday words, keep technical terms in "
+    "English (for example: cache, API, database), keep each line short, and "
+    "stay encouraging. Mention at least one specific thing the student "
+    "actually said. Do not criticise modest wording such as 'small' or "
+    "'simple'.\n"
+    "- improved_english: rewrite what the student said as a proper, natural, "
+    "moderate-level spoken interview English answer, whatever language they "
+    "used (English, Tamil or Tanglish). Keep their own ideas. ALWAYS in "
+    "English only, never in Tamil, because interviews are conducted in "
+    "English. Follow STAR (Situation, Task, Action, Result) only where the "
+    "student's own ideas allow, and never add details they did not say. Do "
+    "NOT invent tools, numbers, companies, or projects; where a specific "
+    "detail is missing, use a placeholder such as [your tool] or [X%] so the "
+    "student fills it in.\n"
     "General rule: base every field on the question and the student's actual "
     "answer. In both notes and tamil_advice, mention at least one specific "
     "thing the student actually said (for example a tool, an action or a "
     "result they named). Never give generic advice that could apply to any "
-    "answer."
+    "answer.\n"
+    "Scores must reflect this specific answer. Do not default to 7. Use the "
+    "full 0-10 range: a very short or vague answer should score 3-5, a clear, "
+    "specific, well-structured answer 7-9."
 )
 
 

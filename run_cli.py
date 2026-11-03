@@ -78,7 +78,6 @@ def main() -> None:
     print(f"  Structure : {result.structure}")
     print(f"  English   : {result.english}")
     print(f"  Overall   : {result.overall}")
-    print(f"  Notes     : {result.notes}")
 
     attempt_number = record_attempt(
         student_id=student_id,
@@ -90,14 +89,11 @@ def main() -> None:
     )
     print(f"\n(Logged attempt #{attempt_number} for {student_id} to results/attempts.csv)")
 
-    print("\n--- தமிழ் அறிவுரை / Tamil advice ---")
+    print("\n--- தமிழ் அறிவுரை / Tamil tips ---")
     print(result.tamil_advice)
 
-    print("\n--- Improved English answer ---")
+    print("\n--- Interview English / நேர்காணல் ஆங்கிலம் ---")
     print(result.improved_english)
-
-    print("\n--- How to say it / இப்படிச் சொல்லுங்கள் ---")
-    print(result.how_to_say_it)
 
 
 if __name__ == "__main__":

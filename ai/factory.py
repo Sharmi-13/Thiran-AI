@@ -69,10 +69,10 @@ def _build_gemini_model() -> Model:
 
     model_id = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip() or DEFAULT_GEMINI_MODEL
 
-    # Fail fast instead of hanging: 90s request timeout (milliseconds) and at
+    # Fail fast instead of hanging: 45s request timeout (milliseconds) and at
     # most one retry (attempts counts the original request, so 2 == 1 retry).
     http_options = HttpOptions(
-        timeout=90_000,
+        timeout=45_000,
         retry_options=HttpRetryOptions(attempts=2),
     )
 

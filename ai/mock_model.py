@@ -35,6 +35,28 @@ T = TypeVar("T")
 # model was constructed without one.
 _DEFAULT_LANGUAGE = "english"
 
+# Distinct canned values for the merged review's structured fields, so the
+# offline (mock) two-box layout shows different text per box and varied
+# scores. Unmapped fields fall back to generic type-based placeholders.
+_REVIEW_FIELD_VALUES: dict[str, Any] = {
+    "content": 5,
+    "structure": 6,
+    "english": 7,
+    "overall": 6,
+    "notes": "Mock notes: this is internal and not shown in the UI.",
+    "tamil_advice": (
+        "உங்கள் பதில் ஒரு நல்ல தொடக்கம்.\n"
+        "முதலில் situation-ஐ தெளிவாக சொல்லுங்கள்.\n"
+        "நீங்கள் சொன்ன cache tool பற்றி இன்னும் விவரம் சேருங்கள்.\n"
+        "முடிவில் result-ஐ ஒரு வரியில் சொல்லுங்கள்."
+    ),
+    "improved_english": (
+        "In my project I worked on [your task]. I used [your tool] to solve "
+        "the problem, and as a result I improved performance by [X%]. "
+        "I focused on keeping the solution simple and reliable."
+    ),
+}
+
 
 class MockModel(Model):
     """Deterministic, language-aware mock model for Strands agents."""
@@ -268,6 +290,12 @@ class MockModel(Model):
 
         values: dict[str, Any] = {}
         for name, prop in properties.items():
+            if name in _REVIEW_FIELD_VALUES:
+                # Distinct, varied canned values so the two-box review layout
+                # can be checked offline (different text per field, scores that
+                # are not all the same).
+                values[name] = _REVIEW_FIELD_VALUES[name]
+                continue
             json_type = prop.get("type") if isinstance(prop, dict) else None
             values[name] = self._placeholder_for_json_type(json_type, text)
         return values
